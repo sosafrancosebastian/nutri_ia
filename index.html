@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NutriIA - Contador de Calorías con IA</title>
+  
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NutriIA">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #0b0f19;
+      color: #f3f4f6;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.6);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-card-sm {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="pb-24 pt-4 px-4 min-h-screen flex flex-col justify-between max-w-md mx-auto relative overflow-x-hidden">
+
+  <!-- ==================== PANTALLA DE LOGIN ==================== -->
+  <div id="login-screen" class="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center p-6">
+    <div class="w-full max-w-sm space-y-6 text-center">
+      <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mb-2 shadow-lg shadow-emerald-500/10">
+        <i data-lucide="apple" class="w-10 h-10"></i>
+      </div>
+      <div>
+        <h1 class="text-3xl font-extrabold tracking-tight text-white">Nutri<span class="text-emerald-400">IA</span></h1>
+        <p class="text-sm text-slate-400 mt-1">Control de nutrición inteligente con IA</p>
+      </div>
+
+      <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4 text-left">
+        <div>
+          <label class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1 block">Correo Electrónico</label>
+          <input type="email" id="login-email" required placeholder="tu@email.com" class="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors">
+        </div>
+        <div>
+          <label class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1 block">Serial Key de Activación</label>
+          <input type="text" id="login-serial" required placeholder="NTR-XXXX-XXXX-XXXX" class="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors uppercase font-mono">
+        </div>
+        <p id="login-error" class="text-xs text-rose-400 hidden text-center font-medium">Serial inválido, vencido o dispositivo no autorizado.</p>
+        <button type="submit" class="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition-all">
+          Ingresar a NutriIA
+        </button>
+      </form>
+
+      <button onclick="toggleModal('admin-modal')" class="text-xs text-slate-500 hover:text-slate-400 flex items-center justify-center gap-1 mx-auto mt-6">
+        <i data-lucide="shield" class="w-3.5 h-3.5"></i> Acceso Administrador
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== HEADER PRINCIPAL ==================== -->
+  <header id="app-header" class="hidden mb-4">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <i data-lucide="activity" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-white leading-tight">Nutri<span class="text-emerald-400">IA</span></h1>
+          <p id="user-display-email" class="text-xs text-slate-400 truncate max-w-[180px]">usuario@email.com</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleModal('edit-quick-totals-modal')" class="p-2.5 rounded-xl glass-card text-slate-300 hover:text-white active:scale-95 transition-all" title="Editar Consumo">
+          <i data-lucide="edit-3" class="w-4 h-4"></i>
+        </button>
+        <button onclick="toggleModal('admin-modal')" class="p-2.5 rounded-xl glass-card text-slate-300 hover:text-white active:scale-95 transition-all" title="Panel Admin">
+          <i data-lucide="shield" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
+  <main id="app-content" class="hidden space-y-4">
+    
+    <!-- Pestaña 1: Dashboard -->
+    <section id="tab-dashboard" class="space-y-4">
+      <div id="apikey-warning" class="glass-card p-4 rounded-2xl border-amber-500/30 bg-amber-500/10 hidden">
+        <div class="flex items-start gap-3">
+          <i data-lucide="key" class="w-5 h-5 text-amber-400 shrink-0 mt-0.5"></i>
+          <div class="text-xs text-amber-200">
+            <p class="font-bold mb-1">API Key requerida</p>
+            <p class="text-amber-300/80 mb-2">Ingresá tu API Key de Gemini en Ajustes para calcular calorías por foto e IA gratis.</p>
+            <button onclick="switchTab('tab-settings')" class="underline font-semibold text-amber-400">Ir a Ajustes</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card p-5 rounded-3xl relative overflow-hidden">
+        <div class="flex justify-between items-center mb-4">
+          <div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Resumen Diario</span>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+              <span id="display-consumed-calories" onclick="editSingleValue('calories')" class="cursor-pointer hover:text-emerald-400 transition-colors">0</span>
+              <span class="text-slate-500 text-sm font-normal">/ <span id="display-target-calories" onclick="editSingleValue('target-calories')" class="cursor-pointer hover:text-emerald-400">2000</span> kcal</span>
+            </h2>
+          </div>
+          <div class="text-right">
+            <span id="display-remaining-calories" class="text-2xl font-extrabold text-emerald-400">2000</span>
+            <span class="block text-[10px] font-medium text-slate-400 uppercase">Restantes</span>
+          </div>
+        </div>
+
+        <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 mb-4">
+          <div id="calorie-progress-bar" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500 w-0"></div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-center">
+          <div onclick="editSingleValue('protein')" class="p-2 rounded-2xl glass-card-sm cursor-pointer hover:bg-slate-800/80 transition-all">
+            <span class="text-[10px] font-bold text-indigo-400 uppercase block">Proteína</span>
+            <span class="text-sm font-bold text-white"><span id="display-protein">0</span>g</span>
+            <span class="text-[10px] text-slate-500 block">/ <span id="display-target-protein">150</span>g</span>
+          </div>
+          <div onclick="editSingleValue('carbs')" class="p-2 rounded-2xl glass-card-sm cursor-pointer hover:bg-slate-800/80 transition-all">
+            <span class="text-[10px] font-bold text-amber-400 uppercase block">Carbos</span>
+            <span class="text-sm font-bold text-white"><span id="display-carbs">0</span>g</span>
+            <span class="text-[10px] text-slate-500 block">/ <span id="display-target-carbs">200</span>g</span>
+          </div>
+          <div onclick="editSingleValue('fats')" class="p-2 rounded-2xl glass-card-sm cursor-pointer hover:bg-slate-800/80 transition-all">
+            <span class="text-[10px] font-bold text-rose-400 uppercase block">Grasas</span>
+            <span class="text-sm font-bold text-white"><span id="display-fats">0</span>g</span>
+            <span class="text-[10px] text-slate-500 block">/ <span id="display-target-fats">60</span>g</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card p-4 rounded-3xl flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+            <i data-lucide="droplet" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <span class="text-xs font-semibold text-slate-400">Agua e Hidratación</span>
+            <p class="text-sm font-bold text-white">
+              <span id="display-water" onclick="editSingleValue('water')" class="cursor-pointer hover:text-cyan-400">0</span>
+              <span class="text-slate-500 font-normal"> / <span id="display-target-water" onclick="editSingleValue('target-water')" class="cursor-pointer hover:text-cyan-400">2500</span> ml</span>
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button onclick="addWater(-250)" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold flex items-center justify-center active:scale-95 transition-all">-</button>
+          <button onclick="addWater(250)" class="w-8 h-8 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-bold flex items-center justify-center active:scale-95 transition-all">+</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="openMealModal('photo')" class="p-4 rounded-3xl glass-card flex flex-col items-center justify-center gap-2 text-emerald-400 hover:bg-emerald-500/10 transition-all border border-emerald-500/20 active:scale-[0.98]">
+          <i data-lucide="camera" class="w-6 h-6"></i>
+          <span class="text-xs font-bold text-white">Foto / Plato IA</span>
+        </button>
+        <button onclick="openMealModal('manual')" class="p-4 rounded-3xl glass-card flex flex-col items-center justify-center gap-2 text-indigo-400 hover:bg-indigo-500/10 transition-all border border-indigo-500/20 active:scale-[0.98]">
+          <i data-lucide="plus-circle" class="w-6 h-6"></i>
+          <span class="text-xs font-bold text-white">Carga Manual</span>
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 px-1">Comidas Registradas Hoy</h3>
+        <div id="meals-list" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- Pestaña 2: Historial -->
+    <section id="tab-history" class="space-y-4 hidden">
+      <div class="glass-card p-5 rounded-3xl space-y-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h3 class="text-sm font-bold text-white">Registro de Peso</h3>
+            <p class="text-xs text-slate-400">Seguimiento de recomposición</p>
+          </div>
+          <button onclick="toggleModal('add-weight-modal')" class="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold rounded-xl text-xs active:scale-95 transition-all">
+            + Anotar Peso
+          </button>
+        </div>
+        <div class="h-44 w-full">
+          <canvas id="weightChart"></canvas>
+        </div>
+      </div>
+      <div class="glass-card p-5 rounded-3xl space-y-3">
+        <h3 class="text-sm font-bold text-white mb-2">Historial Reciente</h3>
+        <div id="history-days-list" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- Pestaña 3: Ajustes -->
+    <section id="tab-settings" class="space-y-4 hidden">
+      <div class="glass-card p-5 rounded-3xl space-y-3 border-emerald-500/30">
+        <div class="flex items-center gap-2">
+          <i data-lucide="key" class="w-5 h-5 text-emerald-400"></i>
+          <h3 class="text-sm font-bold text-white">Tu Gemini API Key</h3>
+        </div>
+        <p class="text-xs text-slate-400">Obtené tu clave personal gratuita en Google AI Studio.</p>
+        <div>
+          <input type="password" id="user-gemini-key" placeholder="AIzaSy..." class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-emerald-500">
+        </div>
+        <div class="flex gap-2">
+          <button onclick="saveUserApiKey()" class="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs transition-all">
+            Guardar Key
+          </button>
+          <a href="https://aistudio.google.com/apikey" target="_blank" class="px-3 py-2 glass-card-sm text-slate-300 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-1">
+            Obtener Gratis <i data-lucide="external-link" class="w-3 h-3"></i>
+          </a>
+        </div>
+      </div>
+
+      <div class="glass-card p-5 rounded-3xl space-y-4">
+        <h3 class="text-sm font-bold text-white">Diagnóstico y Objetivos</h3>
+        <form onsubmit="recalculateTDEE(event)" class="space-y-3">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] font-semibold text-slate-400 block mb-1">Peso (kg)</label>
+              <input type="number" step="0.1" id="cfg-weight" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+            </div>
+            <div>
+              <label class="text-[10px] font-semibold text-slate-400 block mb-1">Altura (cm)</label>
+              <input type="number" id="cfg-height" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] font-semibold text-slate-400 block mb-1">Edad</label>
+              <input type="number" id="cfg-age" value="29" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+            </div>
+            <div>
+              <label class="text-[10px] font-semibold text-slate-400 block mb-1">Pasos Diarios Est.</label>
+              <input type="number" id="cfg-steps" value="8000" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold text-slate-400 block mb-1">Objetivo Nutricional</label>
+            <select id="cfg-goal" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none">
+              <option value="recomp">Recomposición Corporal (Grasa ↓ / Músculo ↑)</option>
+              <option value="deficit">Déficit Calórico Estándar (Bajar Peso)</option>
+              <option value="maintenance">Mantenimiento</option>
+              <option value="surplus">Superávit (Ganar Masa Muscular)</option>
+            </select>
+          </div>
+          <button type="submit" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition-all">
+            Recalcular Metas Diarias
+          </button>
+        </form>
+      </div>
+
+      <div class="glass-card p-5 rounded-3xl space-y-3">
+        <h3 class="text-sm font-bold text-white">Copia de Seguridad / Respaldo</h3>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="exportBackupData()" class="py-2.5 glass-card-sm text-slate-300 hover:text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Exportar Backup
+          </button>
+          <label class="py-2.5 glass-card-sm text-slate-300 hover:text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer">
+            <i data-lucide="upload" class="w-3.5 h-3.5"></i> Importar
+            <input type="file" accept=".json" onchange="importBackupData(event)" class="hidden">
+          </label>
+        </div>
+        <button onclick="logout()" class="w-full py-2.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 font-bold rounded-xl text-xs transition-all">
+          Cerrar Sesión
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==================== NAVEGACIÓN INFERIOR ==================== -->
+  <nav id="app-nav" class="hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto p-3 bg-slate-950/90 backdrop-blur-xl border-t border-slate-800/80 z-40">
+    <div class="flex justify-around items-center">
+      <button onclick="switchTab('tab-dashboard')" id="nav-dashboard" class="flex flex-col items-center gap-1 text-emerald-400 transition-all">
+        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+        <span class="text-[10px] font-bold">Hoy</span>
+      </button>
+      <button onclick="switchTab('tab-history')" id="nav-history" class="flex flex-col items-center gap-1 text-slate-500 transition-all">
+        <i data-lucide="line-chart" class="w-5 h-5"></i>
+        <span class="text-[10px] font-bold">Progreso</span>
+      </button>
+      <button onclick="switchTab('tab-settings')" id="nav-settings" class="flex flex-col items-center gap-1 text-slate-500 transition-all">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+        <span class="text-[10px] font-bold">Ajustes</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ==================== MODALES ==================== -->
+  <div id="meal-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-4 hidden">
+    <div class="glass-card w-full max-w-sm rounded-3xl p-5 space-y-4 border-slate-700/50">
+      <div class="flex justify-between items-center">
+        <h3 id="meal-modal-title" class="text-base font-bold text-white">Cargar Comida</h3>
+        <button onclick="toggleModal('meal-modal')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form id="meal-form" onsubmit="handleMealSubmit(event)" class="space-y-3">
+        <input type="hidden" id="meal-mode" value="manual">
+        <div>
+          <label class="text-[10px] font-semibold text-slate-400 uppercase">Tipo de Comida</label>
+          <select id="meal-type" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+            <option value="Desayuno">Desayuno</option>
+            <option value="Almuerzo" selected>Almuerzo</option>
+            <option value="Merienda">Merienda</option>
+            <option value="Cena">Cena</option>
+            <option value="Snack">Snack</option>
+          </select>
+        </div>
+        <div id="meal-photo-container" class="hidden space-y-2">
+          <label class="text-[10px] font-semibold text-slate-400 uppercase">Adjuntar Foto</label>
+          <input type="file" id="meal-photo-input" accept="image/*" capture="environment" class="w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-emerald-500/10 file:text-emerald-400 file:font-semibold">
+        </div>
+        <div>
+          <label class="text-[10px] font-semibold text-slate-400 uppercase">Descripción / Alimento</label>
+          <input type="text" id="meal-name" placeholder="Ej: 150g pechuga de pollo" required class="w-full mt-1 px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div id="meal-manual-inputs" class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[10px] font-semibold text-slate-400 uppercase">Calorías</label>
+            <input type="number" id="meal-kcals" placeholder="350" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold text-slate-400 uppercase">Proteínas (g)</label>
+            <input type="number" id="meal-protein" placeholder="30" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold text-slate-400 uppercase">Carbos (g)</label>
+            <input type="number" id="meal-carbs" placeholder="40" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold text-slate-400 uppercase">Grasas (g)</label>
+            <input type="number" id="meal-fats" placeholder="10" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          </div>
+        </div>
+        <button type="submit" id="meal-submit-btn" class="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-lg shadow-emerald-500/20">
+          Guardar Registro
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div id="edit-quick-totals-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-4 hidden">
+    <div class="glass-card w-full max-w-sm rounded-3xl p-5 space-y-4 border-slate-700/50">
+      <div class="flex justify-between items-center">
+        <h3 class="text-base font-bold text-white">Editar Totales</h3>
+        <button onclick="toggleModal('edit-quick-totals-modal')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form onsubmit="saveQuickTotals(event)" class="space-y-3">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[10px] font-semibold text-slate-400 uppercase">Calorías Consumidas</label>
+            <input type="number" id="quick-kcals" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold text-slate-400 uppercase">Meta Calorías</label>
+            <input type="number" id="quick-target-kcals" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold text-slate-400 uppercase">Proteínas (g)</label>
+            <input type="number" id="quick-protein" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold text-slate-400 uppercase">Carbos (g)</label>
+            <input type="number" id="quick-carbs" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold text-slate-400 uppercase">Grasas (g)</label>
+            <input type="number" id="quick-fats" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold text-slate-400 uppercase">Agua (ml)</label>
+            <input type="number" id="quick-water" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          </div>
+        </div>
+        <button type="submit" class="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs transition-all">Guardar</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="add-weight-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-4 hidden">
+    <div class="glass-card w-full max-w-sm rounded-3xl p-5 space-y-4 border-slate-700/50">
+      <div class="flex justify-between items-center">
+        <h3 class="text-base font-bold text-white">Anotar Peso</h3>
+        <button onclick="toggleModal('add-weight-modal')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form onsubmit="handleWeightSubmit(event)" class="space-y-3">
+        <div>
+          <label class="text-[10px] font-semibold text-slate-400 uppercase">Peso Actual (kg)</label>
+          <input type="number" step="0.1" id="new-weight-val" required class="w-full mt-1 px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+        </div>
+        <button type="submit" class="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs transition-all">Guardar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Panel Admin con Expiración en Días -->
+  <div id="admin-modal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-card w-full max-w-sm rounded-3xl p-5 space-y-4 border-emerald-500/30">
+      <div class="flex justify-between items-center">
+        <div class="flex items-center gap-2">
+          <i data-lucide="shield" class="w-5 h-5 text-emerald-400"></i>
+          <h3 class="text-base font-bold text-white">Panel Administrador</h3>
+        </div>
+        <button onclick="toggleModal('admin-modal')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div id="admin-auth-sec" class="space-y-3">
+        <p class="text-xs text-slate-400">Contraseña maestra:</p>
+        <input type="password" id="admin-pass" placeholder="Contraseña Admin" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+        <button onclick="verifyAdminPass()" class="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs transition-all">Acceder</button>
+      </div>
+
+      <div id="admin-panel-sec" class="space-y-4 hidden">
+        <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl space-y-2">
+          <p class="text-[10px] text-emerald-300 uppercase font-bold">Generador de Seriales Protegidos</p>
+          <input type="email" id="gen-email" placeholder="correo.cliente@ejemplo.com" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          <div>
+            <label class="text-[10px] text-slate-400 block mb-1">Duración (Días de vigencia)</label>
+            <input type="number" id="gen-days" value="30" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white">
+          </div>
+          <button onclick="generateClientSerial()" class="w-full py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs transition-all">Generar y Copiar Serial</button>
+          <div id="gen-result" class="mt-2 text-center hidden">
+            <p class="text-[10px] text-slate-400">Serial Generado:</p>
+            <p id="gen-serial-code" class="text-xs font-mono font-bold text-emerald-400 select-all cursor-pointer" onclick="copyGenSerial()"></p>
+          </div>
+        </div>
+        <button onclick="lockAdmin()" class="w-full py-2 text-slate-400 hover:text-white text-xs font-semibold">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT -->
+  <script>
+    const MASTER_PASS = "Morita99*";
+    const SECRET_SALT = "NutriIA_Secure_Salt_2026";
+
+    let state = {
+      user: null,
+      apiKey: localStorage.getItem('nutri_user_apikey') || '',
+      profile: JSON.parse(localStorage.getItem('nutri_profile')) || {
+        weight: 75, height: 175, age: 29, steps: 8000, goal: 'recomp',
+        targetCalories: 2000, targetProtein: 160, targetCarbs: 190, targetFats: 55, targetWater: 2500
+      },
+      today: { date: new Date().toISOString().split('T')[0], calories: 0, protein: 0, carbs: 0, fats: 0, water: 0, meals: [] },
+      weightHistory: JSON.parse(localStorage.getItem('nutri_weight_history')) || [{ date: '2026-10-24', weight: 75.0 }]
+    };
+
+    let weightChart = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      checkAuthSession();
+      loadTodayData();
+      initChart();
+    });
+
+    // Obtener ID único del dispositivo local (para evitar compartir cuenta)
+    function getDeviceID() {
+      let devId = localStorage.getItem('nutri_device_id');
+      if (!devId) {
+        devId = 'DEV-' + Math.random().toString(36).substring(2, 12).toUpperCase();
+        localStorage.setItem('nutri_device_id', devId);
+      }
+      return devId;
+    }
+
+    // Generar Serial con Fecha de Expiración encriptada
+    function generateSerialForEmail(email, daysValid) {
+      const cleanEmail = email.trim().toLowerCase();
+      const expirationDate = new Date();
+      expirationDate.setDate(expirationDate.getDate() + parseInt(daysValid));
+      const expTimeStr = expirationDate.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+
+      let hash = 0;
+      const combined = cleanEmail + "_" + expTimeStr + "_" + SECRET_SALT;
+      for (let i = 0; i < combined.length; i++) {
+        hash = (hash << 5) - hash + combined.charCodeAt(i);
+        hash |= 0;
+      }
+      const hexHash = Math.abs(hash).toString(16).toUpperCase().padStart(8, 'X');
+      return `NTR-${hexHash}-${expTimeStr}`;
+    }
+
+    function checkAuthSession() {
+      const savedUser = localStorage.getItem('nutri_user_session');
+      if (savedUser) {
+        const userData = JSON.parse(savedUser);
+        if (new Date() > new Date(userData.expiresAt)) {
+          alert('Tu suscripción mensual ha expirado. Por favor renová tu serial.');
+          logout();
+          return;
+        }
+        state.user = userData;
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('app-header').classList.remove('hidden');
+        document.getElementById('app-content').classList.remove('hidden');
+        document.getElementById('app-nav').classList.remove('hidden');
+        document.getElementById('user-display-email').innerText = state.user.email;
+        checkApiKeyWarning();
+        updateUI();
+      }
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value.trim();
+      const serial = document.getElementById('login-serial').value.trim().toUpperCase();
+      const errorMsg = document.getElementById('login-error');
+
+      const parts = serial.split('-');
+      if (parts.length < 3) {
+        errorMsg.classList.remove('hidden');
+        return;
+      }
+      const expDateStr = parts.slice(2).join('-');
+      const daysDiff = (new Date(expDateStr) - new Date()) / (1000 * 60 * 60 * 24);
+
+      const cleanEmail = email.toLowerCase();
+      let hash = 0;
+      const combined = cleanEmail + "_" + expDateStr + "_" + SECRET_SALT;
+      for (let i = 0; i < combined.length; i++) {
+        hash = (hash << 5) - hash + combined.charCodeAt(i);
+        hash |= 0;
+      }
+      const expectedHash = Math.abs(hash).toString(16).toUpperCase().padStart(8, 'X');
+      const expectedPrefix = `NTR-${expectedHash}`;
+
+      if (serial.startsWith(expectedPrefix) && daysDiff >= 0) {
+        const currentDevice = getDeviceID();
+        let boundDevice = localStorage.getItem('nutri_bound_device_' + cleanEmail);
+        
+        if (!boundDevice) {
+          localStorage.setItem('nutri_bound_device_' + cleanEmail, currentDevice);
+          boundDevice = currentDevice;
+        }
+
+        if (boundDevice !== currentDevice) {
+          errorMsg.innerText = "Este serial ya está registrado en otro dispositivo.";
+          errorMsg.classList.remove('hidden');
+          return;
+        }
+
+        state.user = { email, serial, expiresAt: expDateStr };
+        localStorage.setItem('nutri_user_session', JSON.stringify(state.user));
+        errorMsg.classList.add('hidden');
+        checkAuthSession();
+      } else {
+        errorMsg.innerText = "Serial inválido, vencido o incorrecto.";
+        errorMsg.classList.remove('hidden');
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('nutri_user_session');
+      location.reload();
+    }
+
+    function saveUserApiKey() {
+      state.apiKey = document.getElementById('user-gemini-key').value.trim();
+      localStorage.setItem('nutri_user_apikey', state.apiKey);
+      checkApiKeyWarning();
+      alert('API Key guardada correctamente.');
+    }
+
+    function checkApiKeyWarning() {
+      const warn = document.getElementById('apikey-warning');
+      const input = document.getElementById('user-gemini-key');
+      if (input) input.value = state.apiKey;
+      if (!state.apiKey) warn.classList.remove('hidden');
+      else warn.classList.add('hidden');
+    }
+
+    function switchTab(tabId) {
+      ['tab-dashboard', 'tab-history', 'tab-settings'].forEach(id => document.getElementById(id).classList.add('hidden'));
+      document.getElementById(tabId).classList.remove('hidden');
+      ['nav-dashboard', 'nav-history', 'nav-settings'].forEach(id => document.getElementById(id).className = 'flex flex-col items-center gap-1 text-slate-500 transition-all');
+      const activeNav = document.getElementById('nav-' + tabId.replace('tab-', ''));
+      if (activeNav) activeNav.className = 'flex flex-col items-center gap-1 text-emerald-400 transition-all';
+    }
+
+    function loadTodayData() {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const saved = localStorage.getItem('nutri_today_' + todayStr);
+      state.today = saved ? JSON.parse(saved) : { date: todayStr, calories: 0, protein: 0, carbs: 0, fats: 0, water: 0, meals: [] };
+    }
+
+    function saveTodayData() {
+      localStorage.setItem('nutri_today_' + state.today.date, JSON.stringify(state.today));
+      updateUI();
+    }
+
+    function updateUI() {
+      document.getElementById('display-consumed-calories').innerText = Math.round(state.today.calories);
+      document.getElementById('display-target-calories').innerText = Math.round(state.profile.targetCalories);
+      document.getElementById('display-remaining-calories').innerText = Math.max(0, Math.round(state.profile.targetCalories - state.today.calories));
+      document.getElementById('calorie-progress-bar').style.width = Math.min(100, (state.today.calories / state.profile.targetCalories) * 100) + '%';
+      document.getElementById('display-protein').innerText = Math.round(state.today.protein);
+      document.getElementById('display-target-protein').innerText = Math.round(state.profile.targetProtein);
+      document.getElementById('display-carbs').innerText = Math.round(state.today.carbs);
+      document.getElementById('display-target-carbs').innerText = Math.round(state.profile.targetCarbs);
+      document.getElementById('display-fats').innerText = Math.round(state.today.fats);
+      document.getElementById('display-target-fats').innerText = Math.round(state.profile.targetFats);
+      document.getElementById('display-water').innerText = state.today.water;
+      document.getElementById('display-target-water').innerText = state.profile.targetWater;
+
+      const list = document.getElementById('meals-list');
+      if (state.today.meals.length === 0) {
+        list.innerHTML = `<p class="text-xs text-slate-500 text-center py-4 glass-card rounded-2xl">No hay comidas registradas hoy.</p>`;
+      } else {
+        list.innerHTML = state.today.meals.map((m, idx) => `
+          <div class="glass-card p-3 rounded-2xl flex justify-between items-center">
+            <div>
+              <span class="text-[10px] font-bold text-emerald-400 uppercase">${m.type}</span>
+              <h4 class="text-xs font-semibold text-white">${m.name}</h4>
+              <p class="text-[10px] text-slate-400">${m.protein}g P | ${m.carbs}g C | ${m.fats}g G</p>
+            </div>
+            <div class="text-right flex items-center gap-2">
+              <span class="text-xs font-bold text-white">${m.calories} kcal</span>
+              <button onclick="deleteMeal(${idx})" class="text-slate-500 hover:text-rose-400"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+            </div>
+          </div>
+        `).join('');
+        lucide.createIcons();
+      }
+    }
+
+    function addWater(amount) {
+      state.today.water = Math.max(0, state.today.water + amount);
+      saveTodayData();
+    }
+
+    function editSingleValue(field) {
+      if (field === 'calories') { const val = prompt('Calorías consumidas:', state.today.calories); if (val !== null) state.today.calories = parseFloat(val) || 0; }
+      else if (field === 'target-calories') { const val = prompt('Meta de calorías:', state.profile.targetCalories); if (val !== null) { state.profile.targetCalories = parseFloat(val) || 2000; localStorage.setItem('nutri_profile', JSON.stringify(state.profile)); } }
+      else if (field === 'protein') { const val = prompt('Proteínas (g):', state.today.protein); if (val !== null) state.today.protein = parseFloat(val) || 0; }
+      else if (field === 'carbs') { const val = prompt('Carbos (g):', state.today.carbs); if (val !== null) state.today.carbs = parseFloat(val) || 0; }
+      else if (field === 'fats') { const val = prompt('Grasas (g):', state.today.fats); if (val !== null) state.today.fats = parseFloat(val) || 0; }
+      else if (field === 'water') { const val = prompt('Agua (ml):', state.today.water); if (val !== null) state.today.water = parseInt(val) || 0; }
+      else if (field === 'target-water') { const val = prompt('Meta de agua (ml):', state.profile.targetWater); if (val !== null) { state.profile.targetWater = parseInt(val) || 2500; localStorage.setItem('nutri_profile', JSON.stringify(state.profile)); } }
+      saveTodayData();
+    }
+
+    function saveQuickTotals(e) {
+      e.preventDefault();
+      state.today.calories = parseFloat(document.getElementById('quick-kcals').value) || 0;
+      state.profile.targetCalories = parseFloat(document.getElementById('quick-target-kcals').value) || 2000;
+      state.today.protein = parseFloat(document.getElementById('quick-protein').value) || 0;
+      state.today.carbs = parseFloat(document.getElementById('quick-carbs').value) || 0;
+      state.today.fats = parseFloat(document.getElementById('quick-fats').value) || 0;
+      state.today.water = parseInt(document.getElementById('quick-water').value) || 0;
+      localStorage.setItem('nutri_profile', JSON.stringify(state.profile));
+      saveTodayData();
+      toggleModal('edit-quick-totals-modal');
+    }
+
+    function openMealModal(mode) {
+      document.getElementById('meal-mode').value = mode;
+      const photoSec = document.getElementById('meal-photo-container');
+      const manualInputs = document.getElementById('meal-manual-inputs');
+      const btn = document.getElementById('meal-submit-btn');
+      if (mode === 'photo') {
+        document.getElementById('meal-modal-title').innerText = 'Calcular con IA';
+        photoSec.classList.remove('hidden'); manualInputs.classList.add('hidden'); btn.innerText = 'Analizar Foto';
+      } else {
+        document.getElementById('meal-modal-title').innerText = 'Carga Manual';
+        photoSec.classList.add('hidden'); manualInputs.classList.remove('hidden'); btn.innerText = 'Guardar';
+      }
+      toggleModal('meal-modal');
+    }
+
+    async function handleMealSubmit(e) {
+      e.preventDefault();
+      const mode = document.getElementById('meal-mode').value;
+      const type = document.getElementById('meal-type').value;
+      const name = document.getElementById('meal-name').value.trim();
+
+      if (mode === 'photo') {
+        if (!state.apiKey) { alert('Configurá tu Gemini API Key en Ajustes primero.'); return; }
+        const btn = document.getElementById('meal-submit-btn');
+        btn.innerText = 'Analizando...'; btn.disabled = true;
+        try {
+          const fileInput = document.getElementById('meal-photo-input');
+          let base64 = fileInput.files.length > 0 ? await convertBase64(fileInput.files[0]) : null;
+          const result = await callGeminiAPI(name, base64);
+          if (result) {
+            state.today.meals.push({ type, name: result.alimento || name, calories: result.calorias || 0, protein: result.proteina || 0, carbs: result.carbohidratos || 0, fats: result.grasas || 0 });
+            state.today.calories += result.calorias || 0; state.today.protein += result.proteina || 0; state.today.carbs += result.carbohidratos || 0; state.today.fats += result.grasas || 0;
+            saveTodayData(); toggleModal('meal-modal');
+          }
+        } catch (err) { alert('Error: ' + err.message); }
+        finally { btn.innerText = 'Analizar Foto'; btn.disabled = false; }
+      } else {
+        const cal = parseFloat(document.getElementById('meal-kcals').value) || 0;
+        const prot = parseFloat(document.getElementById('meal-protein').value) || 0;
+        const carb = parseFloat(document.getElementById('meal-carbs').value) || 0;
+        const fat = parseFloat(document.getElementById('meal-fats').value) || 0;
+        state.today.meals.push({ type, name, calories: cal, protein: prot, carbs: carb, fats: fat });
+        state.today.calories += cal; state.today.protein += prot; state.today.carbs += carb; state.today.fats += fat;
+        saveTodayData(); toggleModal('meal-modal');
+      }
+    }
+
+    function deleteMeal(idx) {
+      const m = state.today.meals[idx];
+      if (!m) return;
+      state.today.calories = Math.max(0, state.today.calories - m.calories);
+      state.today.protein = Math.max(0, state.today.protein - m.protein);
+      state.today.carbs = Math.max(0, state.today.carbs - m.carbs);
+      state.today.fats = Math.max(0, state.today.fats - m.fats);
+      state.today.meals.splice(idx, 1);
+      saveTodayData();
+    }
+
+    async function callGeminiAPI(description, base64Image) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${state.apiKey}`;
+      const promptText = `Nutricionista experto. Analizá: "${description}". Devolvé UNICAMENTE JSON: {"alimento": "nombre", "calorias": 350, "proteina": 25, "carbohidratos": 30, "grasas": 10}`;
+      let parts = [{ text: promptText }];
+      if (base64Image) parts.push({ inline_data: { mime_type: "image/jpeg", data: base64Image.split(',')[1] } });
+      const resp = await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ contents: [{ parts }] }) });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error?.message || 'Error API');
+      const text = data.candidates[0].content.parts[0].text;
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) return JSON.parse(match[0]);
+      throw new Error("No se pudo interpretar JSON.");
+    }
+
+    function convertBase64(file) {
+      return new Promise((res, rej) => {
+        const r = new FileReader(); r.readAsDataURL(file);
+        r.onload = () => res(r.result); r.onerror = e => rej(e);
+      });
+    }
+
+    function recalculateTDEE(e) {
+      e.preventDefault();
+      const weight = parseFloat(document.getElementById('cfg-weight').value) || 75;
+      const height = parseFloat(document.getElementById('cfg-height').value) || 175;
+      const age = parseInt(document.getElementById('cfg-age').value) || 29;
+      const steps = parseInt(document.getElementById('cfg-steps').value) || 8000;
+      const goal = document.getElementById('cfg-goal').value;
+
+      let bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5;
+      let factor = steps > 10000 ? 1.55 : (steps > 7000 ? 1.375 : 1.2);
+      let tdee = bmr * factor, targetCal = tdee, targetProt = weight * 2.0;
+
+      if (goal === 'recomp') { targetCal = tdee * 0.95; targetProt = weight * 2.3; }
+      else if (goal === 'deficit') { targetCal = tdee * 0.80; targetProt = weight * 2.2; }
+      else if (goal === 'surplus') { targetCal = tdee * 1.15; targetProt = weight * 2.0; }
+
+      const targetFat = (targetCal * 0.25) / 9;
+      const targetCarb = (targetCal - (targetProt * 4) - (targetFat * 9)) / 4;
+
+      state.profile = { weight, height, age, steps, goal, targetCalories: Math.round(targetCal), targetProtein: Math.round(targetProt), targetCarbs: Math.round(targetCarb), targetFats: Math.round(targetFat), targetWater: Math.round(weight * 35) };
+      localStorage.setItem('nutri_profile', JSON.stringify(state.profile));
+      updateUI();
+      alert('¡Metas actualizadas!');
+    }
+
+    function initChart() {
+      const ctx = document.getElementById('weightChart').getContext('2d');
+      weightChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: state.weightHistory.map(w => w.date), datasets: [{ label: 'Peso', data: state.weightHistory.map(w => w.weight), borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.3 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#64748b' } }, y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } } } }
+      });
+    }
+
+    function handleWeightSubmit(e) {
+      e.preventDefault();
+      const weight = parseFloat(document.getElementById('new-weight-val').value);
+      if (!weight) return;
+      const dateStr = new Date().toISOString().split('T')[0];
+      state.weightHistory.push({ date: dateStr, weight });
+      localStorage.setItem('nutri_weight_history', JSON.stringify(state.weightHistory));
+      weightChart.data.labels.push(dateStr);
+      weightChart.data.datasets[0].data.push(weight);
+      weightChart.update();
+      toggleModal('add-weight-modal');
+    }
+
+    function verifyAdminPass() {
+      if (document.getElementById('admin-pass').value === MASTER_PASS) {
+        document.getElementById('admin-auth-sec').classList.add('hidden');
+        document.getElementById('admin-panel-sec').classList.remove('hidden');
+      } else { alert('Contraseña incorrecta'); }
+    }
+
+    function lockAdmin() {
+      document.getElementById('admin-auth-sec').classList.remove('hidden');
+      document.getElementById('admin-panel-sec').classList.add('hidden');
+      document.getElementById('admin-pass').value = '';
+      toggleModal('admin-modal');
+    }
+
+    function generateClientSerial() {
+      const email = document.getElementById('gen-email').value.trim();
+      const days = document.getElementById('gen-days').value || 30;
+      if (!email) { alert('Ingresá un correo'); return; }
+      const serial = generateSerialForEmail(email, days);
+      document.getElementById('gen-serial-code').innerText = serial;
+      document.getElementById('gen-result').classList.remove('hidden');
+      navigator.clipboard.writeText(serial);
+      alert('¡Serial generado con ' + days + ' días de vigencia y copiado!');
+    }
+
+    function copyGenSerial() {
+      navigator.clipboard.writeText(document.getElementById('gen-serial-code').innerText);
+      alert('Copiado.');
+    }
+
+    function toggleModal(id) { document.getElementById(id).classList.toggle('hidden'); }
+
+    function exportBackupData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ profile: state.profile, weightHistory: state.weightHistory, today: state.today }));
+      const a = document.createElement('a'); a.href = dataStr; a.download = `NutriIA_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+
+    function importBackupData(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const imp = JSON.parse(evt.target.result);
+          if (imp.profile) localStorage.setItem('nutri_profile', JSON.stringify(imp.profile));
+          if (imp.weightHistory) localStorage.setItem('nutri_weight_history', JSON.stringify(imp.weightHistory));
+          alert('Backup importado. Reiniciando...'); location.reload();
+        } catch (err) { alert('Archivo inválido.'); }
+      };
+      reader.readAsText(file);
+    }
+  </script>
+</body>
+</html>
